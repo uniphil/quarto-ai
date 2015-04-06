@@ -1,4 +1,5 @@
 from functools import reduce
+import random
 
 
 init_board = (
@@ -81,18 +82,19 @@ piece_wins = lambda board, piece:\
     any(check(place(board, piece, spot), spot) for spot in empties(board))
 
 
-def place_win(board, piece):
+def place_to_win(board, piece):
     for spot in empties(board):
         maybe = place(board, piece, spot)
         if check(maybe, spot):
-            return maybe
+            return maybe, True
+    return place(board, piece, random.choice(tuple(empties(board)))), False
 
 
 def place_piece(board, piece):
     if piece_wins(board, piece):
         return where_piece_wins(), True
     else:
-        return place(board, piece, empties(board).send(None))
+        return place(board, piece, random.choice(tuple(empties(board))))
 
 
 turn_wins = lambda board, pieces:\
@@ -132,13 +134,25 @@ def parse_spot(s):
     return reduce(lambda a, b: a + b*4, map(int, nums))
 
 
-def player_move(board, pieces):
-    piece = get_from('your piece: ', parse_piece, pieces)
-    pieces_left = tuple(filter(lambda p: p!= piece, pieces))
+without = lambda item, stuff:\
+    tuple(filter(lambda p: p != item, stuff))
 
-    spot = get_from('your spot: ', parse_spot, tuple(empties(board)))
+
+def player_move(board, piece, pieces):
+    print('AI gave you:', ppiece(piece))
+    print('The remaining pieces are:', ppieces(pieces))
+    spot = get_from('Place {} at: '.format(ppiece(piece)),
+        parse_spot, tuple(empties(board)))
     new_board = place(board, piece, spot)
-    return new_board, pieces_left, check(new_board, spot)
+
+    return new_board, check(new_board, spot)
+
+
+def player_pick(pieces):
+    piece = get_from('Piece to give AI: ', parse_piece, pieces)
+    return piece, without(piece, pieces)
+
+
 
 
 ppiece = lambda piece:\
@@ -167,10 +181,22 @@ board = init_board
 pieces = init_pieces
 while True:
     print(pboard(board))
-    print('remaining pieces:', ppieces(pieces))
-    board, pieces, won = player_move(board, pieces)
+
+    if len(pieces) == 0:
+        print('I guess it\'s a tie?')
+        break
+    player_piece = get_nonwinning(board, pieces) or random.choice(pieces)
+    pieces = without(player_piece, pieces)
+
+    board, won = player_move(board, player_piece, pieces)
+    print(pboard(board))
     if won:
-        print(pboard(board))
         print('you won!')
         break
+    ai_piece, pieces = player_pick(pieces)
 
+    board, won = place_to_win(board, ai_piece)
+    if won:
+        print(pboard(board))
+        print('aw, AI won!')
+        break
